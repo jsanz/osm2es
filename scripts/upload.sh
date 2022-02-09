@@ -8,7 +8,6 @@ log()
 upload_dataset()
 {
     layer=$1
-
     index_name=${ES_INDEX}_${layer}
 
     # Deleting if index exists
@@ -28,7 +27,6 @@ upload_dataset()
     echo "-----------------------------"
 }
 
-
 DATA_FILE=/app/data/data.pbf
 
 if [ ! -e ${DATA_FILE} ]; then
@@ -36,10 +34,7 @@ if [ ! -e ${DATA_FILE} ]; then
   exit 1
 fi
 
-# Generate the points index
-
 log "Starting process to upload data from ${DOWNLOAD_AREA}"
-
 
 for layer in points lines multilinestrings multipolygons other_relations
 do
