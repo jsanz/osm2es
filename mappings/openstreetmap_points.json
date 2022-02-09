@@ -1,0 +1,40 @@
+{
+    "properties": {
+        "osm_id": {
+            "type": "keyword"
+        },
+        "name": {
+            "type": "keyword"
+        },
+        "barrier": {
+            "type": "keyword"
+        },
+        "highway": {
+            "type": "keyword"
+        },
+        "ref": {
+            "type": "keyword"
+        },
+        "address": {
+            "type": "keyword"
+        },
+        "is_in": {
+            "type": "keyword"
+        },
+        "place": {
+            "type": "keyword"
+        },
+        "man_made": {
+            "type": "keyword"
+        },
+        "other_tags": {
+            "type": "keyword"
+        },
+        "geometry": {
+            "type": "geo_shape"
+        }
+    },
+    "_meta": {
+        "fid": "ogc_fid"
+    }
+}

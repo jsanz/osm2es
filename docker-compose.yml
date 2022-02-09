@@ -1,0 +1,29 @@
+version: "3.7"
+services:
+  download:
+    # set the UID and GID in the .env file respectively
+    # by running "id -u" and "id -g" to 
+    user: $UID:$GID
+    image: openmaptiles/openmaptiles-tools
+    container_name: openmaptiles-tools
+    volumes:
+      - ./data:/tileset
+    networks: 
+      - osm2es
+    command: "download-osm ${DOWNLOAD_TYPE} ${DOWNLOAD_AREA} -o /tileset/data.pbf --force"
+  upload:
+    user: $UID:$GID
+    image: osgeo/gdal:latest
+    container_name: upload
+    environment:
+      - DOWNLOAD_AREA=${DOWNLOAD_AREA}
+      - ES_URL=${ES_URL}
+      - ES_INDEX=${ES_INDEX}
+    volumes:
+      - .:/app
+    networks: 
+      - osm2es
+    command: "/app/scripts/upload.sh"
+
+networks:
+  osm2es:
