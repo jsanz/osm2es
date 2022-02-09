@@ -9,7 +9,7 @@
 
 ### Set up
 
-Copy the `.env.sample`:
+Copy the `.env.sample` as `.env`:
 
 * Set up your Elasticsearch host and credentials
 * Define the area to download
