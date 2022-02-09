@@ -33,6 +33,7 @@ DATA_FILE=/app/data/data.pbf
 
 if [ ! -e ${DATA_FILE} ]; then
   echo "Data file {${DATA_FILE}} not found!"
+  exit 1
 fi
 
 # Generate the points index
