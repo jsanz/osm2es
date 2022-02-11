@@ -10,20 +10,34 @@ services:
       - ./data:/tileset
     networks: 
       - osm2es
-    command: "download-osm ${DOWNLOAD_TYPE} ${DOWNLOAD_AREA} -o /tileset/data.pbf --force"
+    command: "bash -c \"mkdir -p /tileset/${TASK_NAME}; download-osm ${DOWNLOAD_TYPE} ${DOWNLOAD_AREA} -o /tileset/${TASK_NAME}/data.pbf --force\""
   upload:
-    user: $UID:$GID
-    image: osgeo/gdal:latest
+    network_mode: host
+    build:
+      context: .
     container_name: upload
     environment:
+      - TASK_NAME=${TASK_NAME}
       - DOWNLOAD_AREA=${DOWNLOAD_AREA}
+      - OSM_CONFIG_FILE=/app/osmconf.ini
       - ES_URL=${ES_URL}
-      - ES_INDEX=${ES_INDEX}
+      - ES_INDEX_PREFFIX=${ES_INDEX_PREFFIX}
+      - ES_REPLICAS=${ES_REPLICAS}
     volumes:
       - .:/app
-    networks: 
-      - osm2es
     command: "/app/scripts/upload.sh"
+  osmium:
+    network_mode: host
+    build:
+      context: .
+      dockerfile: Dockerfile-osmium
+    container_name: osmium
+    environment:
+      - ES_URL=${ES_URL}
+      - DATA_FILE=${DATA_FILE}
+    volumes:
+      - ./scripts:/usr/src/app/scripts
+      - ./data:/usr/src/app/data
 
 networks:
   osm2es:

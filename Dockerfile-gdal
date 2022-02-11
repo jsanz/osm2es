@@ -1,0 +1,3 @@
+FROM osgeo/gdal:latest
+
+RUN bash -c "apt -y update && DEBIAN_FRONTEND=noninteractive apt -y install parallel jq"
