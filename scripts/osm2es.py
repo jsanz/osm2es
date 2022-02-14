@@ -266,9 +266,6 @@ class OSMtoESHandler(SimpleHandler):
         Arguments:
             way {Way} -- osmium way object
         """
-        nodes = []
-        for node in way.nodes:
-            nodes.append(node.ref)
 
         way_db = {
             "osm_id": way.id,
@@ -276,7 +273,6 @@ class OSMtoESHandler(SimpleHandler):
             "osm_type": "way",
             "visible": way.visible,
             "timestamp": way.timestamp,
-            "nodes": nodes,
             "geometry": json.loads(geojson.create_linestring(way)),
             "other_tags": self.tags2dict(tags=way.tags, type="way"),
         }
