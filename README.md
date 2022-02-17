@@ -1,53 +1,37 @@
 # OSM to Elasticsearch
 
-## Requirements
+## Set up
 
-* Docker 
-* Docker Compose
+Create a virtual environment and install the libraries with `pip install -r requirements.txt`
 
-## How to run
+## Run
 
-### Set up
+```text
+$ python scripts/osm2es.py --help
+usage: python3 osm2es.py
 
-Copy the `.env.sample` as `.env`:
+Imports OSM data into Elasticsearch
 
-* Set up your Elasticsearch host and credentials
-* Define the area to download
+positional arguments:
+  input_file            OSM input PBF file
 
-You can run the following command to check for example the areas available by `geofabrik`:
-
-```
-docker run --rm  openmaptiles/openmaptiles-tools download-osm list geofabrik 
-```
-
-Check [`download-osm`](https://github.com/openmaptiles/openmaptiles-tools/blob/master/bin/download-osm) for more details on how this tool works.
-
-
-### Download
-
-Run the download process with:
-
-```sh
-docker-compose up download
-```
-
-It should create a `data/data.pbf` file with the area selected.
-
-### Upload
-
-Run the upload process with: 
-
-```sh
-docker-compose up upload
+optional arguments:
+  -h, --help            show this help message and exit
+  --index-name INDEX_NAME
+                        Index name
+  --es-url ES_URL       Elasticsearch url (default: http://localhost:9200)
+  --es-user ES_USER     Elasticsearch user (default: elastic)
+  --es-pwd ES_PWD       Elasticsearch password (default: changeme)
+  --es-replicas ES_REPLICAS
+                        Index replicas (default: 0)
+  --workers WORKER_COUNT
+                        Number of worker threads to run (default: 1)
+  --cache-size DB_CACHE_SIZE
+                        Number of documents to accumulate before sending to ES (default: 5000)
+  -v                    Enable verbose output.
 ```
 
-The upload process will rotate over the different layers of the `pbf` file and generate the following indexes, assuming `ES_INDEX=osm`
+**Notes**:
 
-* `osm_points`
-* `osm_lines`
-* `osm_multilines`
-* `osm_multipolygons`
-* `osm_other_relations`
-
-You can create then a Data View in Kibana pointing to `osm*` and then use filtering capabilities in Elastic Maps to decide what do you want to render.
-
+* The script will overwrite the index passed so be sure you are OK with that
+* By default it will use a single worker in parallel with the data read. You may want to try but 6 to 8 workers should work best
