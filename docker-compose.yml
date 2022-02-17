@@ -8,6 +8,8 @@ services:
     container_name: openmaptiles-tools
     volumes:
       - ./data:/tileset
+    env_file:
+      - .env
     networks: 
       - osm2es
     command: "bash -c \"mkdir -p /tileset/${TASK_NAME}; download-osm ${DOWNLOAD_TYPE} ${DOWNLOAD_AREA} -o /tileset/${TASK_NAME}/data.pbf --force\""
@@ -17,13 +19,8 @@ services:
       context: .
       dockerfile: Dockerfile-upload
     container_name: upload
-    environment:
-      - TASK_NAME=${TASK_NAME}
-      - DOWNLOAD_AREA=${DOWNLOAD_AREA}
-      - OSM_CONFIG_FILE=/app/osmconf.ini
-      - ES_URL=${ES_URL}
-      - ES_INDEX_PREFFIX=${ES_INDEX_PREFFIX}
-      - ES_REPLICAS=${ES_REPLICAS}
+    env_file:
+      - .env
     volumes:
       - .:/app
     command: "/app/scripts/upload.sh"
