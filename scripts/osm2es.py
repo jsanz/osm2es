@@ -10,15 +10,17 @@ from elasticsearch.helpers import bulk
 from osmium import SimpleHandler
 from osmium import geom
 from osmium.osm import RelationMember
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-ES_URL = os.getenv("ES_URL")
 TASK_NAME = os.getenv("TASK_NAME")
+ES_URL = os.getenv("ES_URL")
 ES_INDEX_PREFFIX = os.getenv("ES_INDEX_PREFFIX", "openstreetmap")
+ES_REPLICAS = int(os.getenv("ES_REPLICAS", "0"))
 
-if not (ES_URL and TASK_NAME and ES_INDEX_PREFFIX):
+if not (ES_URL and TASK_NAME):
     print("ES_URL and/or TASK_NAME not defined!!")
     sys.exit(1)
 
@@ -32,6 +34,8 @@ logger = logging.getLogger(__name__)
 logging.getLogger("elastic_transport").setLevel(logging.WARNING)
 
 
+# TODO: Implement a Queue and multiprocessing like in 
+# https://github.com/Sophox/sophox/blob/main/osm2rdf/RdfFileHandler.py
 class OSMtoESHandler(SimpleHandler):
     OSM_TAGS = {
         "node": [
@@ -108,19 +112,21 @@ class OSMtoESHandler(SimpleHandler):
         self.esclient.indices.create(
             index=self.index_name,
             timeout="60s",
-            settings={"number_of_shards": 1, "number_of_replicas": 0},
+            settings={"number_of_shards": 1, "number_of_replicas": ES_REPLICAS},
             mappings={
                 "properties": {
                     # common
                     "osm_id": {"type": "keyword"},
                     "osm_version": {"type": "integer"},
                     "osm_type": {"type": "keyword"},
+                    "osm_user": {"type": "keyword"},
                     "visible": {"type": "keyword"},
                     "timestamp": {"type": "date"},
-                    "point": {"type": "geo_point"},
                     "nodes": {"type": "keyword"},
+                    "point": {"type": "geo_point"},
                     "geometry": {"type": "geo_shape"},
                     "other_tags": {"type": "flattened"},
+                    "num_tags": {"type": "integer"},
                     "name": {"type": "text"},
                     "man_made": {"type": "keyword"},
                     "wikidata": {"type": "text"},
@@ -231,6 +237,40 @@ class OSMtoESHandler(SimpleHandler):
 
         return tag_dict
 
+    def process_element(self, element, geometry, type, base_db = {}):
+        """
+        Process a OSM object
+
+        Arguments:
+            element -- osmium OSM oject
+            geometry -- a geometry constructed from the OSM object
+            type -- node|way|area|rel
+            based_db -- a preprocessed object to update
+        """
+        element_db = {
+            "osm_id": element.id,
+            "osm_version": element.version,
+            "osm_user": element.user,
+            "visible": element.visible,
+            "timestamp": element.timestamp,
+            "osm_type": type,
+            "num_tags": len(element.tags),
+            "other_tags": self.tags2dict(tags=element.tags, type=type)
+        }
+
+        element_db.update(base_db)
+
+        if geometry:
+            element_db["geometry"] = json.loads(geometry)        
+
+        for prop in self.OSM_TAGS[type]:
+            if prop in element.tags:
+                element_db[prop] = element.tags[prop]
+
+        self.cache.append(element_db)
+
+        self.increment_cache(type)
+
     def node(self, node):
         """
         Import OSM node into database as node
@@ -238,26 +278,15 @@ class OSMtoESHandler(SimpleHandler):
         Arguments:
             node {Node} -- osmium node object
         """
-        if node.location.valid():
-
-            node_db = {
-                "osm_id": node.id,
-                "osm_version": node.version,
-                "osm_type": "node",
-                "visible": node.visible,
-                "timestamp": node.timestamp,
-                "other_tags": self.tags2dict(tags=node.tags, type="node"),
-            }
-
-            node_db["point"] = [node.location.lon, node.location.lat]
-
-            for prop in self.OSM_TAGS["node"]:
-                if prop in node.tags:
-                    node_db[prop] = node.tags[prop]
-
-            self.cache.append(node_db)
-
-            self.increment_cache("node")
+        try:
+            if node.visible and node.location.valid():
+                geometry = geojson.create_point(node)
+                base_db = {
+                    "point": [node.location.lon, node.location.lat]
+                }
+                self.process_element(node, geometry, "node", base_db=base_db)
+        except Exception as ex:
+            logger.error(f"There was an error loading node {node.id}: {ex}")
 
     def way(self, way):
         """
@@ -266,70 +295,27 @@ class OSMtoESHandler(SimpleHandler):
         Arguments:
             way {Way} -- osmium way object
         """
-
-        way_db = {
-            "osm_id": way.id,
-            "osm_version": way.version,
-            "osm_type": "way",
-            "visible": way.visible,
-            "timestamp": way.timestamp,
-            "geometry": json.loads(geojson.create_linestring(way)),
-            "other_tags": self.tags2dict(tags=way.tags, type="way"),
-        }
-
-        for prop in self.OSM_TAGS["way"]:
-            if prop in way.tags:
-                way_db[prop] = way.tags[prop]
-
-        self.cache.append(way_db)
-
-        self.increment_cache("way")
+        try:
+            if not way.visible:
+                return
+            geometry = geojson.create_linestring(way)
+            self.process_element(way, geometry, "way")
+        except Exception as ex:
+            (exc_type, exc_value, exc_traceback) = sys.exc_info()
+            logger.error(f"There was an error loading way {way.id}: {exc_type}")
 
     def relation(self, rel):
-        """
-        Import OSM relation into database as relation
-
-        Arguments:
-            rel {Relation} -- osmium relation object
-        """
-
-        rel_db = {
-            "osm_id": rel.id,
-            "osm_version": rel.version,
-            "osm_type": "relation",
-            "visible": rel.visible,
-            "timestamp": rel.timestamp,
-            "members": self.members2dict(rel.members),
-            "other_tags": self.tags2dict(tags=rel.tags, type="relation"),
-        }
-
-        for prop in self.OSM_TAGS["relation"]:
-            if prop in rel.tags:
-                rel_db[prop] = rel.tags[prop]
-
-        self.cache.append(rel_db)
-
-        self.increment_cache("rel")
+        pass
 
     def area(self, area):
-
-        area_db = {
-            "osm_id": area.id,
-            "osm_version": area.version,
-            "osm_type": "area",
-            "visible": area.visible,
-            "timestamp": area.timestamp,
-            "geometry": json.loads(geojson.create_multipolygon(area)),
-            "other_tags": self.tags2dict(tags=area.tags, type="area"),
-        }
-
-        for prop in self.OSM_TAGS["area"]:
-            if prop in area.tags:
-                area_db[prop] = area.tags[prop]
-
-        self.cache.append(area_db)
-
-        self.increment_cache("area")
+        try:
+            if not area.visible:
+                return
+            
+            geometry = geojson.create_multipolygon(area)
+            self.process_element(area, geometry, "area")
+        except Exception as ex:
+            logger.error(f"There was an error loading area {area.id}: {ex}")
 
 
 if __name__ == "__main__":
@@ -340,7 +326,7 @@ if __name__ == "__main__":
     osmHandler = OSMtoESHandler(db_cache_size=5000, esclient=client)
     logger.info(f"Creating index [{INDEX_NAME}]...")
     osmHandler.create_index()
-    logger.info("import {}".format("andorra-latest.osm.pbf"))
+    logger.info(f"import {DATA_FILE}...")
     osmHandler.show_import_status()
 
     cache_system = "flex_mem"
