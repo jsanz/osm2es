@@ -68,9 +68,10 @@ def write_actions(client, index_name, data):
         if len(errs) > 0:
             logger.info(f"{len(errs)} documents failed to index")
         
-        return actions
+        return 0 if actions is None else actions
     except:
-        logger.error("An exception triggered on uplading data to ES")
+        logger.error("An exception triggered on uploading data to ES")
+        return 0
 
 class OSMtoESHandler(SimpleHandler):
     def __init__(self, opts):
